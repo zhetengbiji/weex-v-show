@@ -1,3 +1,56 @@
+function generateDeclaration (property, value, important) {
+  return {
+    type: 'declaration',
+    property,
+    value: value
+  }
+}
+
+function clearImportant (value) {
+  const newValue = String(value).replace(/ !important$/, '')
+  return {
+    value: newValue,
+    important: value !== newValue
+  }
+}
+
+function margin (declaration) {
+  const { value, important } = clearImportant(declaration.value)
+  const position = declaration.position
+  const splitResult = value.split(/\s+/)
+  const result = []
+  switch (splitResult.length) {
+    case 1:
+      splitResult.push(splitResult[0], splitResult[0], splitResult[0])
+      break
+    case 2:
+      splitResult.push(splitResult[0], splitResult[1])
+      break
+    case 3:
+      splitResult.push(splitResult[1])
+      break
+  }
+  result.push(
+    generateDeclaration('marginTop', splitResult[0], important, position),
+    generateDeclaration('marginRight', splitResult[1], important, position),
+    generateDeclaration('marginBottom', splitResult[2], important, position),
+    generateDeclaration('marginLeft', splitResult[3], important, position)
+  )
+  return result
+}
+
+const parserCollection = {
+  margin
+}
+
+function expandShorthandProperty (declaration) {
+  const parser = parserCollection[declaration.property]
+  if (parser) {
+    declaration = parser(declaration)
+  }
+  return [].concat(declaration)
+}
+
 const hiddenStyle = {
   boxSizing: 'border-box',
   marginTop: '0',
@@ -9,36 +62,55 @@ const hiddenStyle = {
   overflow: 'hidden'
 }
 
+const defaultStyle = {
+  boxSizing: '',
+  marginTop: '',
+  marginRight: '',
+  marginBottom: '',
+  marginLeft: '',
+  width: '',
+  height: '',
+  overflow: ''
+}
+
 let oldSetStyle
 
 function setStyle (key, value, silent) {
-  if (this.__hidden__ && key in hiddenStyle) {
-    this.__style__[key] = value
-    return
-  }
-  oldSetStyle.call(this, key, value, silent)
+  expandShorthandProperty({ property: key, value }).forEach(({ property, value }) => {
+    if (this.__hidden__ && property in hiddenStyle) {
+      this.__cacheStyle__[property] = value
+      return
+    }
+    oldSetStyle.call(this, property, value, silent)
+  })
 }
+
 let oldSetStyles
 
 function setStyles (batchedStyles, silent) {
-  if (this.__hidden__ && batchedStyles) {
-    Object.keys(hiddenStyle).forEach(key => {
-      if (key in batchedStyles) {
-        this.__style__[key] = batchedStyles[key]
-        delete batchedStyles[key]
+  const style = {}
+  for (const key in batchedStyles) {
+    const value = batchedStyles[key]
+    expandShorthandProperty({ property: key, value }).forEach(({ property, value }) => {
+      if (this.__hidden__ && property in hiddenStyle) {
+        this.__cacheStyle__[property] = value
+        return
       }
+      style[property] = value
     })
   }
-  oldSetStyles.call(this, batchedStyles, silent)
+  oldSetStyles.call(this, style, silent)
 }
+
 let oldToStyle
 
 function toStyle () {
-  const style = oldToStyle.call(this)
+  let style = oldToStyle.call(this)
   if (this.__hidden__) {
-    Object.assign(style, hiddenStyle)
+    return Object.assign({}, style, hiddenStyle)
+  } else {
+    return Object.assign({}, defaultStyle, style)
   }
-  return style
 }
 
 function update (el, {
@@ -46,6 +118,7 @@ function update (el, {
 }) {
   if (!el.__initVShow__) {
     el.__initVShow__ = true
+    el.__cacheStyle__ = {}
     oldSetStyle = el.setStyle
     el.setStyle = setStyle
     oldSetStyles = el.setStyles
@@ -58,16 +131,11 @@ function update (el, {
     return
   }
   el.__hidden__ = hidden
-  if (hidden) {
-    const oldStyle = oldToStyle.call(el)
-    const realStyle = el.__style__ = el.__style__ || {}
-    Object.keys(hiddenStyle).forEach(key => {
-      realStyle[key] = oldStyle[key] || ''
-    })
-    oldSetStyles.call(el, hiddenStyle)
-  } else {
-    oldSetStyles.call(el, el.__style__)
+  if (!hidden) {
+    oldSetStyles.call(el, el.__cacheStyle__)
+    el.__cacheStyle__ = {}
   }
+  el.setClassStyle(Object.assign({}, el.classStyle))
 }
 
 export default {
