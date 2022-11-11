@@ -30,3 +30,9 @@ import vShow from '../../js/weex-v-show.js'
 Vue.directive('show', vShow)
 // #endif
 ```
+
+## 原理及限制
+
+* 由于 weex 不支持设置 display 样式，本插件通过切换元素其他样式来实现；
+* 部分情况下导致隐藏不彻底，可以尝试自行调整插件内切换的样式；
+* 如遇隐藏后无法显示，请给元素显式的设置宽高；

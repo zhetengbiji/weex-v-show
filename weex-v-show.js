@@ -62,17 +62,6 @@ const hiddenStyle = {
   overflow: 'hidden'
 }
 
-const defaultStyle = {
-  boxSizing: '',
-  marginTop: '',
-  marginRight: '',
-  marginBottom: '',
-  marginLeft: '',
-  width: '',
-  height: '',
-  overflow: ''
-}
-
 let oldSetStyle
 
 function setStyle (key, value, silent) {
@@ -109,9 +98,15 @@ function toStyle () {
   if (this.__hidden__) {
     return Object.assign({}, style, hiddenStyle)
   } else {
+    const defaultStyle = {}
+    Object.keys(hiddenStyle).forEach(key => {
+      defaultStyle[key] = ''
+    })
     return Object.assign({}, defaultStyle, style)
   }
 }
+
+let index = 0
 
 function update (el, {
   value
@@ -135,7 +130,7 @@ function update (el, {
     oldSetStyles.call(el, el.__cacheStyle__)
     el.__cacheStyle__ = {}
   }
-  el.setClassStyle(Object.assign({}, el.classStyle))
+  el.setClassStyle(Object.assign({}, el.classStyle, { i: index++ }))
 }
 
 export default {
